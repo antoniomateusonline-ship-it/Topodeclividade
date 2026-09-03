@@ -4,6 +4,18 @@ Aplicativo web (HTML/CSS/JS puro, sem dependências) para calcular a declividade
 entre pontos levantados com estação total e gerar um relatório técnico
 editável, com foto e logotipos, pronto para impressão em papel A4.
 
+## Estrutura do projeto
+
+```
+.
+├── index.html      # estrutura da página
+├── css/
+│   └── style.css   # todo o estilo visual
+├── js/
+│   └── script.js   # toda a lógica (cálculos, relatório, fotos, logos, impressão)
+└── README.md
+```
+
 ## Funcionalidades
 
 - Cadastro de pontos (E, N, Z/cota e descrição).
@@ -18,13 +30,15 @@ editável, com foto e logotipos, pronto para impressão em papel A4.
 
 ## Como usar
 
-Basta abrir o arquivo `index.html` em qualquer navegador — não precisa de
-servidor, backend ou instalação. Tudo roda localmente no navegador; nenhum
-dado é enviado para fora do dispositivo.
+Abra o arquivo `index.html` em qualquer navegador — não precisa de servidor,
+backend ou instalação. Mantenha as pastas `css/` e `js/` junto do `index.html`,
+pois ele referencia `css/style.css` e `js/script.js`. Tudo roda localmente no
+navegador; nenhum dado é enviado para fora do dispositivo.
 
 ## Publicar no GitHub Pages (opcional)
 
-1. Crie um repositório no GitHub e suba este arquivo (`index.html`) na raiz.
+1. Crie um repositório no GitHub e suba `index.html`, a pasta `css/` e a
+   pasta `js/` mantendo essa mesma estrutura de pastas.
 2. Vá em **Settings → Pages**.
 3. Em **Source**, selecione a branch (ex.: `main`) e a pasta `/ (root)`.
 4. Salve. O GitHub gera uma URL do tipo
@@ -35,19 +49,11 @@ dado é enviado para fora do dispositivo.
 
 ```bash
 git init
-git add index.html README.md
+git add index.html css/style.css js/script.js README.md
 git commit -m "Primeira versão do app de declividade"
 git branch -M main
 git remote add origin https://github.com/SEU-USUARIO/NOME-DO-REPOSITORIO.git
 git push -u origin main
-```
-
-## Estrutura
-
-```
-.
-├── index.html   # aplicativo completo (HTML + CSS + JS embutidos)
-└── README.md
 ```
 
 ## Observações técnicas
