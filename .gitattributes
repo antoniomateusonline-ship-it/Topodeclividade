@@ -1,0 +1,11 @@
+# Normaliza as quebras de linha para LF em todo o repositório,
+# independente do sistema operacional de quem estiver clonando/commitando.
+* text=auto eol=lf
+
+# Arquivos binários — nunca converter quebras de linha
+*.png binary
+*.ico binary
+*.jpg binary
+*.jpeg binary
+*.woff binary
+*.woff2 binary

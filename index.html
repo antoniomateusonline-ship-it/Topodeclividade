@@ -469,6 +469,9 @@
 /* ---- Abas (aplicativo único) ---- */
 .tab-panel{display:none;}
 .tab-panel.active{display:block;}
+
+/* ---- Estado desabilitado (botões de nuvem, salvar, etc.) ---- */
+button:disabled{opacity:0.5;cursor:not-allowed;}
 </style>
 </head>
 <body>
@@ -682,15 +685,31 @@
 
   <!-- ==================== ABA: RELATÓRIOS SALVOS ==================== -->
   <div class="tab-panel" id="tab-relatorios">
+    <div class="panel no-print" id="cloudConfigPanel">
+      <h2><span class="n">01</span>Nuvem (Supabase)</h2>
+      <div class="field-grid">
+        <label>URL do projeto Supabase
+          <input type="text" id="inpSbUrl" placeholder="https://xxxxxxxx.supabase.co">
+        </label>
+        <label>Chave anon/public
+          <input type="password" id="inpSbKey" placeholder="chave anon do projeto">
+        </label>
+        <label>Nome da tabela
+          <input type="text" id="inpSbTable" placeholder="relatorios">
+        </label>
+      </div>
+      <div class="hint" id="cloudStatus">Preencha a URL e a chave para habilitar o botão "Salvar na nuvem" em cada relatório. Os dados ficam salvos apenas neste navegador.</div>
+    </div>
+
     <div class="panel no-print" id="listPanel">
-      <h2><span class="n">01</span>Relatórios (por ordem de criação)</h2>
+      <h2><span class="n">02</span>Relatórios (por ordem de criação)</h2>
       <div id="reportsList"></div>
       <div class="report-empty" id="listEmptyMsg">Nenhum relatório salvo ainda. Gere um relatório nas abas de Levantamento ou Projeto de Execução e clique em "Salvar relatório na pasta".</div>
     </div>
 
     <div class="panel viewer-mode" id="viewerPanel" style="display:none;">
       <div class="report-inner">
-        <h2 class="no-print" style="border:none;padding-top:18px;"><span class="n">02</span>Visualização</h2>
+        <h2 class="no-print" style="border:none;padding-top:18px;"><span class="n">03</span>Visualização</h2>
         <div class="report-header" id="viewerHeader"></div>
         <div id="viewerEntries"></div>
       </div>
@@ -704,6 +723,7 @@
   <footer class="no-print">Declividade positiva = subida, negativa = descida, no sentido "De → Para". Distância inclinada = √(dist. horizontal² + Δz²). Proporção do talude = 1 : (100 / declividade). Clique em qualquer valor do relatório para editá-lo; use as setas para reordenar os itens.</footer>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* common.js — dados e cálculos compartilhados entre as páginas do app */
 
@@ -712,7 +732,8 @@ const STORAGE_KEYS = {
   obra: 'geo_declividade_obra',
   logoLeft: 'geo_declividade_logoLeft',
   logoRight: 'geo_declividade_logoRight',
-  reports: 'geo_declividade_reports'
+  reports: 'geo_declividade_reports',
+  supabase: 'geo_declividade_supabase'
 };
 
 function loadJSON(key, fallback){
@@ -756,6 +777,11 @@ function loadReports(){
   return loadJSON(STORAGE_KEYS.reports, []);
 }
 function saveReports(reports){ saveJSON(STORAGE_KEYS.reports, reports); }
+
+function loadSupabaseConfig(){
+  return loadJSON(STORAGE_KEYS.supabase, {url:'', anonKey:'', table:'relatorios'});
+}
+function saveSupabaseConfig(cfg){ saveJSON(STORAGE_KEYS.supabase, cfg); }
 
 function genId(){
   return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
@@ -1385,8 +1411,108 @@ function formatDateTime(iso){
   }catch(e){ return iso; }
 }
 
+/* ---- Configuração da nuvem (Supabase) ---- */
+const inpSbUrl = document.getElementById('inpSbUrl');
+const inpSbKey = document.getElementById('inpSbKey');
+const inpSbTable = document.getElementById('inpSbTable');
+const cloudStatus = document.getElementById('cloudStatus');
+
+let supabaseClient = null;
+
+function isCloudConfigured(){
+  const cfg = loadSupabaseConfig();
+  return !!(cfg.url && cfg.anonKey && cfg.table);
+}
+
+function getSupabaseClient(){
+  const cfg = loadSupabaseConfig();
+  if(!cfg.url || !cfg.anonKey) return null;
+  if(typeof supabase === 'undefined'){
+    console.warn('Biblioteca do Supabase não carregou (verifique a conexão com a internet).');
+    return null;
+  }
+  if(!supabaseClient || supabaseClient.__url !== cfg.url || supabaseClient.__key !== cfg.anonKey){
+    supabaseClient = supabase.createClient(cfg.url, cfg.anonKey);
+    supabaseClient.__url = cfg.url;
+    supabaseClient.__key = cfg.anonKey;
+  }
+  return supabaseClient;
+}
+
+function updateCloudStatus(){
+  cloudStatus.textContent = isCloudConfigured()
+    ? 'Conectado — o botão "Salvar na nuvem" já pode ser usado em cada relatório.'
+    : 'Preencha a URL e a chave para habilitar o botão "Salvar na nuvem" em cada relatório. Os dados de conexão ficam salvos apenas neste navegador.';
+}
+
+function loadCloudConfigIntoForm(){
+  const cfg = loadSupabaseConfig();
+  inpSbUrl.value = cfg.url || '';
+  inpSbKey.value = cfg.anonKey || '';
+  inpSbTable.value = cfg.table || 'relatorios';
+  updateCloudStatus();
+}
+
+function syncCloudConfig(){
+  saveSupabaseConfig({
+    url: inpSbUrl.value.trim(),
+    anonKey: inpSbKey.value.trim(),
+    table: inpSbTable.value.trim() || 'relatorios'
+  });
+  supabaseClient = null;
+  updateCloudStatus();
+  renderReportsList();
+}
+inpSbUrl.addEventListener('input', syncCloudConfig);
+inpSbKey.addEventListener('input', syncCloudConfig);
+inpSbTable.addEventListener('input', syncCloudConfig);
+loadCloudConfigIntoForm();
+
+async function uploadReportToCloud(id, btn){
+  const cfg = loadSupabaseConfig();
+  const client = getSupabaseClient();
+  if(!client){
+    alert('Configure a URL e a chave anon do Supabase antes de salvar na nuvem.');
+    return;
+  }
+  const reports = loadReports();
+  const r = reports.find(x => x.id === id);
+  if(!r) return;
+
+  const original = btn.textContent;
+  btn.textContent = 'Enviando...';
+  btn.disabled = true;
+
+  const payload = {
+    id: r.id,
+    type: r.type,
+    title_text: r.titleText,
+    obra: r.obra,
+    responsavel: r.responsavel,
+    data_texto: r.dataTexto,
+    item_count: r.itemCount,
+    created_at: r.createdAt,
+    header_html: r.headerHTML,
+    entries_html: r.entriesHTML,
+    title_block_html: r.titleBlockHTML
+  };
+
+  try{
+    const { error } = await client.from(cfg.table).upsert(payload, { onConflict: 'id' });
+    if(error) throw error;
+    btn.textContent = 'Enviado ✓';
+    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1800);
+  }catch(err){
+    console.error('Erro ao salvar na nuvem:', err);
+    btn.textContent = 'Erro ao enviar';
+    alert('Não foi possível salvar na nuvem: ' + (err.message || err));
+    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 2200);
+  }
+}
+
 function renderReportsList(){
   const reports = loadReports().sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt));
+  const cloudReady = isCloudConfigured();
   reportsList.innerHTML = '';
   listEmptyMsg.style.display = reports.length ? 'none' : 'block';
 
@@ -1400,6 +1526,7 @@ function renderReportsList(){
       </div>
       <div class="rli-actions">
         <button data-act="view" data-id="${r.id}">Visualizar</button>
+        <button data-act="cloud" data-id="${r.id}" ${cloudReady ? '' : 'disabled title="Configure o Supabase acima"'}>Salvar na nuvem</button>
         <button data-act="del" data-id="${r.id}" class="danger">Excluir</button>
       </div>
     `;
@@ -1412,6 +1539,7 @@ function renderReportsList(){
       const act = e.target.dataset.act;
       if(act === 'view') openReport(id);
       else if(act === 'del') deleteReport(id);
+      else if(act === 'cloud') uploadReportToCloud(id, e.target);
     });
   });
 }

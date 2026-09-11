@@ -1,7 +1,7 @@
 /* Service Worker — Declividade por Coordenadas
    Permite o app funcionar offline e ser instalado (PWA). */
 
-const CACHE_NAME = 'declividade-cache-v1';
+const CACHE_NAME = 'declividade-cache-v2';
 const ASSETS = [
   './',
   './index.html',
